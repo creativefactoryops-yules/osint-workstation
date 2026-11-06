@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OSINT Footprint & Digital Self-Audit Workstation</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: JetBrains Mono & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['JetBrains Mono', 'monospace'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            // override cyan palette with terminal-forest phosphor
+            cyan: {
+              300: '#7dff9e',
+              400: '#3DFF73',
+              500: '#3DFF73',
+              800: '#1c5c33',
+              900: '#0f2f1c',
+              950: '#0a1f12',
+            },
+            cyber: {
+              bg: '#040805',
+              card: '#0a0f0a',
+              border: '#1c2b1c',
+              accent: '#3DFF73',
+              glow: '#2EA05C',
+              success: '#b5ff4d',
+              warning: '#f59e0b',
+              danger: '#ef4444'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #040805; }
+    ::-webkit-scrollbar-thumb { background: #1c2b1c; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3DFF73; }
+    .glow-effect { box-shadow: 0 0 15px -3px rgba(61, 255, 115, 0.25); }
+    .modal-backdrop { background-color: rgba(4, 8, 5, 0.85); backdrop-filter: blur(4px); }
+  </style>
+</head>
+<body class="bg-cyber-bg text-gray-200 font-sans min-h-screen flex flex-col selection:bg-cyan-500 selection:text-black">
+
+  <header class="border-b border-cyber-border bg-gray-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-cyan-950 border border-cyan-500/30 flex items-center justify-center text-cyan-400 glow-effect">
+          <i data-lucide="shield-search" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold font-mono tracking-wider text-cyan-400 flex items-center gap-2">
+            ❯ osint//audit
+            <span class="text-[10px] bg-cyan-950 text-cyan-400 border border-cyan-800 px-1.5 py-0.5 rounded font-mono">v2.5</span>
+          </h1>
+          <p class="text-xs text-gray-400 font-mono">digital footprint & self-exposure · --force ./buildyou</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button onclick="exportJSON()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-mono text-gray-300 flex items-center gap-1.5 transition">
+          <i data-lucide="download" class="w-4 h-4 text-cyan-400"></i> Export JSON
+        </button>
+        <button onclick="exportMarkdown()" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs font-mono text-gray-300 flex items-center gap-1.5 transition">
+          <i data-lucide="file-text" class="w-4 h-4 text-cyan-400"></i> Export MD Report
+        </button>
+        <label class="px-3 py-1.5 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-xs font-mono text-cyan-300 flex items-center gap-1.5 cursor-pointer transition">
+          <i data-lucide="upload" class="w-4 h-4"></i> Import Session
+          <input type="file" id="importFileInput" class="hidden" accept=".json" onchange="importJSON(event)" />
+        </label>
+        <button onclick="confirmResetData()" class="px-2.5 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/50 border border-red-800/40 text-xs font-mono text-red-400 transition" title="Clear Audit Workspace">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="bg-gray-900 border border-cyan-500/50 text-cyan-300 px-4 py-3 rounded-lg shadow-2xl flex items-center gap-3 font-mono text-sm">
+      <i data-lucide="info" class="w-5 h-5 text-cyan-400"></i>
+      <span id="toastMsg">Notification message</span>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full flex flex-col gap-6">
+    
+    <div class="flex overflow-x-auto border-b border-gray-800 space-x-1 pb-px scrollbar-none">
+      <button onclick="switchTab('target')" id="tab-btn-target" class="tab-btn px-4 py-2.5 rounded-t-lg font-mono text-sm font-medium flex items-center gap-2 border-b-2 transition whitespace-nowrap text-cyan-400 border-cyan-400 bg-cyan-950/20">
+        <i data-lucide="user-check" class="w-4 h-4"></i> 1. Target Profile
+      </button>
+      <button onclick="switchTab('dorks')" id="tab-btn-dorks" class="tab-btn px-4 py-2.5 rounded-t-lg font-mono text-sm font-medium flex items-center gap-2 border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition whitespace-nowrap">
+        <i data-lucide="search-code" class="w-4 h-4"></i> 2. Search Dorks
+      </button>
+      <button onclick="switchTab('cli')" id="tab-btn-cli" class="tab-btn px-4 py-2.5 rounded-t-lg font-mono text-sm font-medium flex items-center gap-2 border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition whitespace-nowrap">
+        <i data-lucide="terminal" class="w-4 h-4"></i> 3. CLI Synthesizer
+      </button>
+      <button onclick="switchTab('brokers')" id="tab-btn-brokers" class="tab-btn px-4 py-2.5 rounded-t-lg font-mono text-sm font-medium flex items-center gap-2 border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition whitespace-nowrap">
+        <i data-lucide="building-2" class="w-4 h-4"></i> 4. Data Brokers & Opt-Out
+      </button>
+      <button onclick="switchTab('breaches')" id="tab-btn-breaches" class="tab-btn px-4 py-2.5 rounded-t-lg font-mono text-sm font-medium flex items-center gap-2 border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition whitespace-nowrap">
+        <i data-lucide="database-zap" class="w-4 h-4"></i> 5. breach log
+      </button>
+      <button onclick="switchTab('hacker')" id="tab-btn-hacker" class="tab-btn px-4 py-2.5 rounded-t-lg font-mono text-sm font-medium flex items-center gap-2 border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition whitespace-nowrap">
+        <i data-lucide="wrench" class="w-4 h-4"></i> 6. hacker toolbox
+      </button>
+    </div>
+
+    <div id="tab-target" class="tab-content flex flex-col gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg flex flex-col gap-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2">
+              <i data-lucide="sliders" class="w-5 h-5 text-cyan-400"></i> TARGET SEED IDENTIFIERS
+            </h2>
+            <span class="text-xs text-gray-400">Changes immediately update query models</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-mono text-cyan-400 mb-1">Primary Handle / Username</label>
+              <input type="text" id="targetHandle" oninput="updateProfile()" placeholder="e.g. cyber_ghost" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition">
+            </div>
+            <div>
+              <label class="block text-xs font-mono text-cyan-400 mb-1">Target Real Name / Name Variants</label>
+              <input type="text" id="targetName" oninput="updateProfile()" placeholder="e.g. Alex Mercer" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition">
+            </div>
+            <div>
+              <label class="block text-xs font-mono text-cyan-400 mb-1">Target Email Addresses (comma separated)</label>
+              <input type="text" id="targetEmails" oninput="updateProfile()" placeholder="alex@protonmail.com, alex.m@gmail.com" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition">
+            </div>
+            <div>
+              <label class="block text-xs font-mono text-cyan-400 mb-1">Phone Numbers (e.g., +15550192)</label>
+              <input type="text" id="targetPhones" oninput="updateProfile()" placeholder="+15550192, 555-0192" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition">
+            </div>
+            <div>
+              <label class="block text-xs font-mono text-cyan-400 mb-1">Owned Domains (comma separated)</label>
+              <input type="text" id="targetDomains" oninput="updateProfile()" placeholder="alexmercer.dev, devstudio.io" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition">
+            </div>
+            <div>
+              <label class="block text-xs font-mono text-cyan-400 mb-1">Current & Past Locations / Cities</label>
+              <input type="text" id="targetLocations" oninput="updateProfile()" placeholder="Toronto, ON; Seattle, WA" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition">
+            </div>
+          </div>
+        </div>
+        <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg flex flex-col justify-between">
+          <div>
+            <h2 class="text-md font-mono font-bold text-gray-200 border-b border-gray-800 pb-3 mb-4 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-5 h-5 text-cyan-400"></i> AUDIT METRICS
+            </h2>
+            <div class="space-y-4">
+              <div class="flex items-center justify-between p-3 bg-gray-900/60 rounded-lg border border-gray-800">
+                <span class="text-xs font-mono text-gray-400">Data Broker Removal</span>
+                <span id="statBrokerProgress" class="font-mono text-sm font-bold text-cyan-400">0 / 6 (0%)</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-gray-900/60 rounded-lg border border-gray-800">
+                <span class="text-xs font-mono text-gray-400">Logged Breaches</span>
+                <span id="statBreachCount" class="font-mono text-sm font-bold text-amber-400">0 Items</span>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-gray-900/60 rounded-lg border border-gray-800">
+                <span class="text-xs font-mono text-gray-400">Resolved Exposure Risk</span>
+                <span id="statExposureResolved" class="font-mono text-sm font-bold text-emerald-400">0 / 0</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-800">
+            <div class="text-[11px] font-mono text-gray-400 mb-2">Footprint Reduction Gauge</div>
+            <div class="w-full bg-gray-900 h-2.5 rounded-full overflow-hidden border border-gray-800">
+              <div id="overallProgressBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full w-0 transition-all duration-500"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-dorks" class="tab-content hidden flex-col gap-6">
+      <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-800 pb-4 mb-4 gap-3">
+          <div>
+            <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2">
+              <i data-lucide="search-code" class="w-5 h-5 text-cyan-400"></i> AUTOMATED OSINT SEARCH DORK LAUNCHER
+            </h2>
+            <p class="text-xs text-gray-400">Generates targeted search engine operators based on your active target profile.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono text-gray-400">Engine:</span>
+            <select id="dorkEngine" onchange="renderDorks()" class="bg-gray-900 border border-gray-700 text-xs font-mono text-cyan-400 rounded-lg px-3 py-1.5 focus:outline-none">
+              <option value="google">Google</option>
+              <option value="bing">Bing</option>
+              <option value="duckduckgo">DuckDuckGo</option>
+            </select>
+          </div>
+        </div>
+        <div id="dorksContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+    </div>
+
+    <div id="tab-cli" class="tab-content hidden flex-col gap-6">
+      <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+        <div class="border-b border-gray-800 pb-4 mb-4">
+          <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2">
+            <i data-lucide="terminal" class="w-5 h-5 text-cyan-400"></i> OSINT TOOL CLI COMMAND SYNTHESIZER
+          </h2>
+          <p class="text-xs text-gray-400">Copy pre-configured shell commands directly to run in Termux, Linux, or macOS terminal sessions.</p>
+        </div>
+        <div id="cliContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+    </div>
+
+    <div id="tab-brokers" class="tab-content hidden flex-col gap-6">
+      <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+        <div class="flex items-center justify-between border-b border-gray-800 pb-4 mb-4">
+          <div>
+            <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2">
+              <i data-lucide="building-2" class="w-5 h-5 text-cyan-400"></i> DATA BROKER OPT-OUT TRACKER
+            </h2>
+            <p class="text-xs text-gray-400">Direct links to opt-out forms for major commercial record aggregators.</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left font-mono text-sm border-collapse">
+            <thead>
+              <tr class="border-b border-gray-800 text-xs text-gray-400 bg-gray-900/50">
+                <th class="py-3 px-4">DATA BROKER</th>
+                <th class="py-3 px-4">RISK PROFILE</th>
+                <th class="py-3 px-4">DIRECT OPT-OUT PORTAL</th>
+                <th class="py-3 px-4">STATUS</th>
+                <th class="py-3 px-4">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="brokerTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-breaches" class="tab-content hidden flex-col gap-6">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <a href="https://haveibeenpwned.com" target="_blank" class="p-4 bg-cyber-card border border-cyber-border hover:border-cyan-500/50 rounded-xl transition flex items-center justify-between group">
+          <div>
+            <div class="text-xs font-mono text-gray-400">External Database</div>
+            <div class="text-sm font-bold text-cyan-400 font-mono group-hover:underline">HaveIBeenPwned.com</div>
+          </div>
+          <i data-lucide="external-link" class="w-5 h-5 text-cyan-400"></i>
+        </a>
+        <a href="https://dehashed.com" target="_blank" class="p-4 bg-cyber-card border border-cyber-border hover:border-cyan-500/50 rounded-xl transition flex items-center justify-between group">
+          <div>
+            <div class="text-xs font-mono text-gray-400">Paste & Breach Search</div>
+            <div class="text-sm font-bold text-cyan-400 font-mono group-hover:underline">DeHashed Search</div>
+          </div>
+          <i data-lucide="external-link" class="w-5 h-5 text-cyan-400"></i>
+        </a>
+        <a href="https://intelx.io" target="_blank" class="p-4 bg-cyber-card border border-cyber-border hover:border-cyan-500/50 rounded-xl transition flex items-center justify-between group">
+          <div>
+            <div class="text-xs font-mono text-gray-400">OSINT Archive Engine</div>
+            <div class="text-sm font-bold text-cyan-400 font-mono group-hover:underline">Intelligence X</div>
+          </div>
+          <i data-lucide="external-link" class="w-5 h-5 text-cyan-400"></i>
+        </a>
+      </div>
+      <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg flex flex-col gap-4">
+        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+          <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2">
+            <i data-lucide="database-zap" class="w-5 h-5 text-cyan-400"></i> EXPOSED ACCOUNTS & REMEDIATION LOG
+          </h2>
+          <button onclick="openBreachModal()" class="px-3 py-1.5 rounded-lg bg-cyan-950 border border-cyan-500/40 text-xs font-mono text-cyan-300 hover:bg-cyan-900 transition flex items-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4"></i> Add Exposure Log Entry
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left font-mono text-sm border-collapse">
+            <thead>
+              <tr class="border-b border-gray-800 text-xs text-gray-400 bg-gray-900/50">
+                <th class="py-3 px-4">SERVICE / BREACH</th>
+                <th class="py-3 px-4">EXPOSED DATA TYPES</th>
+                <th class="py-3 px-4">SEVERITY</th>
+                <th class="py-3 px-4">REMEDIATION STATUS</th>
+                <th class="py-3 px-4 text-right">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="breachTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 6: Hacker Toolbox -->
+    <div id="tab-hacker" class="tab-content hidden flex-col gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- EXIF Stripper -->
+        <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+          <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2 border-b border-gray-800 pb-3 mb-4">
+            <i data-lucide="image-off" class="w-5 h-5 text-cyan-400"></i> exif stripper
+          </h2>
+          <p class="text-xs font-mono text-gray-400 mb-3">drop a photo → strips location & metadata → download clean version. use before posting to instagram.</p>
+          <input type="file" id="exifInput" accept="image/*" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 mb-3">
+          <div id="exifInfo" class="text-xs font-mono text-gray-400 mb-3"></div>
+          <button onclick="stripExif()" class="w-full py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-xs font-mono text-cyan-300 rounded transition">strip & download clean</button>
+          <a id="exifDownload" class="hidden w-full text-center py-2 mt-2 bg-cyber-success/20 border border-cyber-success/40 text-xs font-mono text-cyber-success rounded transition" download="clean-photo.jpg">download clean photo</a>
+        </div>
+
+        <!-- Password Strength -->
+        <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+          <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2 border-b border-gray-800 pb-3 mb-4">
+            <i data-lucide="key-round" class="w-5 h-5 text-cyan-400"></i> password strength
+          </h2>
+          <p class="text-xs font-mono text-gray-400 mb-3">local only — nothing leaves your browser.</p>
+          <input type="password" id="pwInput" oninput="checkPw()" placeholder="type a password to test" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition mb-3">
+          <div class="w-full bg-gray-900 h-2.5 rounded-full overflow-hidden border border-gray-800 mb-2">
+            <div id="pwBar" class="h-full w-0 transition-all duration-300" style="background:#ef4444"></div>
+          </div>
+          <div id="pwLabel" class="text-xs font-mono text-gray-400"></div>
+          <div id="pwTips" class="text-xs font-mono text-gray-500 mt-2"></div>
+        </div>
+
+        <!-- Link Expander -->
+        <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+          <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2 border-b border-gray-800 pb-3 mb-4">
+            <i data-lucide="link-2-off" class="w-5 h-5 text-cyan-400"></i> link expander
+          </h2>
+          <p class="text-xs font-mono text-gray-400 mb-3">paste a shortened url → see where it really goes before you click.</p>
+          <input type="text" id="linkInput" placeholder="https://bit.ly/xxxx" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition mb-3">
+          <button onclick="expandLink()" class="w-full py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-xs font-mono text-cyan-300 rounded transition">expand link</button>
+          <div id="linkResult" class="text-xs font-mono mt-3 break-all"></div>
+        </div>
+
+        <!-- Hash Lab -->
+        <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 shadow-lg">
+          <h2 class="text-md font-mono font-bold text-gray-200 flex items-center gap-2 border-b border-gray-800 pb-3 mb-4">
+            <i data-lucide="hash" class="w-5 h-5 text-cyan-400"></i> hash lab
+          </h2>
+          <p class="text-xs font-mono text-gray-400 mb-3">generate sha-256 / identify hash type. local only.</p>
+          <input type="text" id="hashInput" oninput="hashLab()" placeholder="type text to hash, or paste a hash to identify" class="w-full bg-gray-900 border border-gray-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none transition mb-3">
+          <div id="hashResult" class="text-xs font-mono text-gray-400 break-all"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <div id="breachModal" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-4">
+    <div class="bg-cyber-card border border-cyber-border rounded-xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4">
+      <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <h3 class="text-md font-mono font-bold text-cyan-400 flex items-center gap-2">
+          <i data-lucide="shield-alert" class="w-5 h-5"></i> Log Credential / Exposure Leak
+        </h3>
+        <button onclick="closeBreachModal()" class="text-gray-400 hover:text-gray-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="space-y-3 font-mono">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Service / Platform Name</label>
+          <input type="text" id="modalService" placeholder="e.g. LinkedIn Leak 2021" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Exposed Data (e.g. Passwords, Email, IP)</label>
+          <input type="text" id="modalExposedData" placeholder="Plaintext Password, Email Address" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Severity Level</label>
+          <select id="modalSeverity" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-cyan-400 focus:outline-none">
+            <option value="CRITICAL">CRITICAL (Plaintext passwords / SSN)</option>
+            <option value="HIGH">HIGH (Hashed Passwords / Security Questions)</option>
+            <option value="MEDIUM">MEDIUM (Email / IP Address / Phone)</option>
+            <option value="LOW">LOW (Public Metadata)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Remediation State</label>
+          <select id="modalStatus" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none">
+            <option value="Pending Action">Pending Action</option>
+            <option value="Password Rotated">Password Rotated</option>
+            <option value="2FA Enabled">2FA Enabled & Secure</option>
+            <option value="Account Deleted">Account Permanently Deleted</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex items-center justify-end space-x-2 pt-3 border-t border-gray-800">
+        <button onclick="closeBreachModal()" class="px-4 py-2 rounded-lg bg-gray-800 text-xs font-mono text-gray-300 hover:bg-gray-700 transition">Cancel</button>
+        <button onclick="saveBreachEntry()" class="px-4 py-2 rounded-lg bg-cyan-950 border border-cyan-500/50 text-xs font-mono text-cyan-300 hover:bg-cyan-900 transition">Save Log Entry</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="border-t border-cyber-border py-4 text-center">
+    <p class="text-xs font-mono text-gray-500">❯ y_ · --force ./buildyou · <span class="text-cyan-400">terminal forest</span> · rm -rf doubt</p>
+  </footer>
+
+  <script>
+    let auditData = {
+      profile: { handle: '', name: '', emails: '', phones: '', domains: '', locations: '' },
+      dataBrokers: [
+        { name: 'FastPeopleSearch', risk: 'HIGH', url: 'https://www.fastpeoplesearch.com/removal', status: 'Not Started' },
+        { name: 'TruePeopleSearch', risk: 'HIGH', url: 'https://www.truepeoplesearch.com/removal', status: 'Not Started' },
+        { name: 'Whitepages', risk: 'HIGH', url: 'https://www.whitepages.com/suppression-requests', status: 'Not Started' },
+        { name: 'Radaris', risk: 'MEDIUM', url: 'https://radaris.com/page/how-to-remove', status: 'Not Started' },
+        { name: 'Spokeo', risk: 'MEDIUM', url: 'https://www.spokeo.com/optout', status: 'Not Started' },
+        { name: 'BeenVerified', risk: 'HIGH', url: 'https://www.beenverified.com/f/optout/search', status: 'Not Started' }
+      ],
+      breaches: []
+    };
+
+    window.addEventListener('DOMContentLoaded', () => { loadState(); lucide.createIcons(); });
+
+    function saveState() { localStorage.setItem('osint_audit_session', JSON.stringify(auditData)); updateDashboardMetrics(); }
+
+    function loadState() {
+      const saved = localStorage.getItem('osint_audit_session');
+      if (saved) { try { auditData = JSON.parse(saved); } catch (e) { console.error('Error parsing session data', e); } }
+      document.getElementById('targetHandle').value = auditData.profile.handle || '';
+      document.getElementById('targetName').value = auditData.profile.name || '';
+      document.getElementById('targetEmails').value = auditData.profile.emails || '';
+      document.getElementById('targetPhones').value = auditData.profile.phones || '';
+      document.getElementById('targetDomains').value = auditData.profile.domains || '';
+      document.getElementById('targetLocations').value = auditData.profile.locations || '';
+      renderDorks(); renderCLICommands(); renderBrokerTable(); renderBreachTable(); updateDashboardMetrics();
+    }
+
+    function updateProfile() {
+      auditData.profile.handle = document.getElementById('targetHandle').value.trim();
+      auditData.profile.name = document.getElementById('targetName').value.trim();
+      auditData.profile.emails = document.getElementById('targetEmails').value.trim();
+      auditData.profile.phones = document.getElementById('targetPhones').value.trim();
+      auditData.profile.domains = document.getElementById('targetDomains').value.trim();
+      auditData.profile.locations = document.getElementById('targetLocations').value.trim();
+      saveState(); renderDorks(); renderCLICommands();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('text-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+        btn.classList.add('text-gray-400', 'border-transparent');
+      });
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      document.getElementById(`tab-${tabId}`).classList.add('flex');
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      activeBtn.classList.add('text-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+      activeBtn.classList.remove('text-gray-400', 'border-transparent');
+    }
+
+    function renderDorks() {
+      const container = document.getElementById('dorksContainer');
+      const engine = document.getElementById('dorkEngine').value;
+      const { handle, name, emails, domains } = auditData.profile;
+      const primaryHandle = handle || 'your_handle';
+      const primaryName = name || 'Your Name';
+      const primaryEmail = emails.split(',')[0]?.trim() || 'email@example.com';
+      const primaryDomain = domains.split(',')[0]?.trim() || 'example.com';
+      const dorks = [
+        { title: 'Exposed Text & Pastes', query: `site:pastebin.com OR site:justpaste.it OR site:rentry.co "${primaryHandle}" OR "${primaryEmail}"`, desc: 'Find leaked credential dumps or text files containing handle/email.' },
+        { title: 'Public Documents & Resumes', query: `filetype:pdf OR filetype:doc OR filetype:docx "${primaryName}"`, desc: 'Locate indexed PDF or Word documents that mention legal name.' },
+        { title: 'Code Repositories & Key Leaks', query: `site:github.com OR site:gitlab.com "${primaryHandle}" OR "${primaryEmail}"`, desc: 'Find exposed source code, API keys, or commits tied to target.' },
+        { title: 'Social & Forum Profiles', query: `"${primaryHandle}" -site:instagram.com -site:twitter.com -site:facebook.com`, desc: 'Uncover obscure, forgotten, or regional forum accounts.' },
+        { title: 'Exposed Cloud Buckets & Storage', query: `site:s3.amazonaws.com OR site:blob.core.windows.net "${primaryDomain}" OR "${primaryHandle}"`, desc: 'Search public cloud storage buckets for configuration or data leaks.' },
+        { title: 'Subdomains & Infrastructure', query: `site:*.${primaryDomain} -www`, desc: 'Identify unlinked or development subdomains.' }
+      ];
+      container.innerHTML = dorks.map(dork => {
+        let searchUrl = '';
+        if (engine === 'google') searchUrl = `https://www.google.com/search?q=${encodeURIComponent(dork.query)}`;
+        else if (engine === 'bing') searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(dork.query)}`;
+        else searchUrl = `https://duckduckgo.com/?q=${encodeURIComponent(dork.query)}`;
+        return `<div class="bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-col justify-between gap-3 hover:border-cyan-500/40 transition">
+          <div><div class="text-xs font-mono font-bold text-cyan-400 mb-1">${dork.title}</div>
+          <p class="text-xs text-gray-400 mb-3">${dork.desc}</p>
+          <pre class="bg-cyber-bg p-2.5 rounded border border-gray-800 text-xs font-mono text-emerald-400 overflow-x-auto select-all">${dork.query}</pre></div>
+          <a href="${searchUrl}" target="_blank" class="w-full text-center py-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/40 text-xs font-mono text-cyan-300 rounded transition flex items-center justify-center gap-1.5">
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Launch Search Operator Query</a></div>`;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function renderCLICommands() {
+      const container = document.getElementById('cliContainer');
+      const { handle, emails, domains } = auditData.profile;
+      const primaryHandle = handle || 'target_handle';
+      const primaryEmail = emails.split(',')[0]?.trim() || 'target@email.com';
+      const primaryDomain = domains.split(',')[0]?.trim() || 'targetdomain.com';
+      const commands = [
+        { tool: 'Sherlock (Username Search)', cmd: `sherlock ${primaryHandle} --print-found --timeout 5`, notes: 'Searches over 300 platforms for username presence.' },
+        { tool: 'Maigret (Advanced Account Mapper)', cmd: `maigret ${primaryHandle} -a --pdf`, notes: 'Deeper recursive username lookup with PDF reporting.' },
+        { tool: 'Holehe (Email Account Finder)', cmd: `holehe ${primaryEmail}`, notes: 'Checks password recovery endpoints across 120+ sites without notifying user.' },
+        { tool: 'GitLeaks (Repository Secret Scanner)', cmd: `gitleaks detect --source . -v`, notes: 'Scans local git commits for leaked passwords and private API keys.' },
+        { tool: 'TruffleHog (Deep Secret Verification)', cmd: `trufflehog git https://github.com/${primaryHandle}/repo.git`, notes: 'Verifies active API tokens embedded in Git history.' },
+        { tool: 'WHOIS Protocol Lookup', cmd: `whois ${primaryDomain}`, notes: 'Checks domain registration info for exposed personal contacts.' }
+      ];
+      container.innerHTML = commands.map(item => `<div class="bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-col justify-between gap-3">
+        <div><div class="flex items-center justify-between mb-1">
+        <span class="text-xs font-mono font-bold text-cyan-400">${item.tool}</span>
+        <button onclick="copyToClipboard('${item.cmd}')" class="text-xs font-mono text-gray-400 hover:text-cyan-300 flex items-center gap-1">
+        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy</button></div>
+        <p class="text-xs text-gray-400 mb-2">${item.notes}</p>
+        <pre class="bg-cyber-bg p-2.5 rounded border border-gray-800 text-xs font-mono text-emerald-400 overflow-x-auto select-all">${item.cmd}</pre></div></div>`).join('');
+      lucide.createIcons();
+    }
+
+    function renderBrokerTable() {
+      const tbody = document.getElementById('brokerTableBody');
+      tbody.innerHTML = auditData.dataBrokers.map((broker, index) => {
+        let statusBadge = broker.status === 'Verified Removed'
+          ? `<span class="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded text-xs">Verified Removed</span>`
+          : broker.status === 'Opt-Out Submitted'
+          ? `<span class="bg-amber-950 text-amber-400 border border-amber-800 px-2 py-0.5 rounded text-xs">Opt-Out Submitted</span>`
+          : `<span class="bg-gray-800 text-gray-400 border border-gray-700 px-2 py-0.5 rounded text-xs">Not Started</span>`;
+        return `<tr class="border-b border-gray-800 hover:bg-gray-900/40 transition">
+          <td class="py-3 px-4 font-bold text-gray-200">${broker.name}</td>
+          <td class="py-3 px-4 text-xs"><span class="text-red-400 font-bold">${broker.risk} EXPOSURE</span></td>
+          <td class="py-3 px-4"><a href="${broker.url}" target="_blank" class="text-cyan-400 hover:underline text-xs flex items-center gap-1">Opt-Out Portal <i data-lucide="external-link" class="w-3 h-3"></i></a></td>
+          <td class="py-3 px-4">${statusBadge}</td>
+          <td class="py-3 px-4"><select onchange="updateBrokerStatus(${index}, this.value)" class="bg-gray-900 border border-gray-700 text-xs font-mono text-gray-300 rounded px-2 py-1 focus:outline-none">
+            <option value="Not Started" ${broker.status === 'Not Started' ? 'selected' : ''}>Not Started</option>
+            <option value="Opt-Out Submitted" ${broker.status === 'Opt-Out Submitted' ? 'selected' : ''}>Opt-Out Submitted</option>
+            <option value="Verified Removed" ${broker.status === 'Verified Removed' ? 'selected' : ''}>Verified Removed</option>
+          </select></td></tr>`;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function updateBrokerStatus(index, newStatus) { auditData.dataBrokers[index].status = newStatus; saveState(); renderBrokerTable(); }
+    function openBreachModal() { document.getElementById('breachModal').classList.remove('hidden'); }
+    function closeBreachModal() { document.getElementById('breachModal').classList.add('hidden'); }
+
+    function saveBreachEntry() {
+      const service = document.getElementById('modalService').value.trim();
+      const dataTypes = document.getElementById('modalExposedData').value.trim();
+      const severity = document.getElementById('modalSeverity').value;
+      const status = document.getElementById('modalStatus').value;
+      if (!service) { showToast('Please enter a service name'); return; }
+      auditData.breaches.push({ id: Date.now(), service, dataTypes, severity, status });
+      saveState(); renderBreachTable(); closeBreachModal();
+      showToast('Breach log entry added successfully.');
+    }
+
+    function renderBreachTable() {
+      const tbody = document.getElementById('breachTableBody');
+      if (auditData.breaches.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-xs text-gray-500 font-mono">No leak or breach entries logged. Click "Add Exposure Log Entry" above to record findings.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = auditData.breaches.map((item, index) => {
+        let sevColor = 'text-amber-400';
+        if (item.severity === 'CRITICAL') sevColor = 'text-red-500 font-bold';
+        if (item.severity === 'HIGH') sevColor = 'text-red-400';
+        return `<tr class="border-b border-gray-800 hover:bg-gray-900/40 transition">
+          <td class="py-3 px-4 font-bold text-gray-200">${item.service}</td>
+          <td class="py-3 px-4 text-xs text-gray-400">${item.dataTypes}</td>
+          <td class="py-3 px-4 text-xs ${sevColor}">${item.severity}</td>
+          <td class="py-3 px-4 text-xs"><span class="bg-gray-800 text-cyan-300 border border-gray-700 px-2 py-0.5 rounded">${item.status}</span></td>
+          <td class="py-3 px-4 text-right"><button onclick="deleteBreachEntry(${index})" class="text-red-400 hover:text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function deleteBreachEntry(index) { auditData.breaches.splice(index, 1); saveState(); renderBreachTable(); showToast('Breach entry removed.'); }
+
+    function updateDashboardMetrics() {
+      const removedCount = auditData.dataBrokers.filter(b => b.status === 'Verified Removed').length;
+      const totalBrokers = auditData.dataBrokers.length;
+      const brokerPct = Math.round((removedCount / totalBrokers) * 100);
+      document.getElementById('statBrokerProgress').innerText = `${removedCount} / ${totalBrokers} (${brokerPct}%)`;
+      const totalBreaches = auditData.breaches.length;
+      document.getElementById('statBreachCount').innerText = `${totalBreaches} Items`;
+      const resolvedBreaches = auditData.breaches.filter(b => b.status !== 'Pending Action').length;
+      document.getElementById('statExposureResolved').innerText = `${resolvedBreaches} / ${totalBreaches}`;
+      let score = 0;
+      if (totalBrokers > 0) score += (removedCount / totalBrokers) * 50;
+      if (totalBreaches > 0) score += (resolvedBreaches / totalBreaches) * 50;
+      else score += 50;
+      document.getElementById('overallProgressBar').style.width = `${Math.min(100, Math.round(score))}%`;
+    }
+
+    function exportJSON() {
+      const blob = new Blob([JSON.stringify(auditData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `OSINT_Audit_Session_${Date.now()}.json`; a.click();
+      showToast('Exported session data to JSON.');
+    }
+
+    function exportMarkdown() {
+      const { handle, name, emails, phones, domains } = auditData.profile;
+      const date = new Date().toISOString().split('T')[0];
+      let md = `# OSINT Footprint Audit Report\n\n**Date:** ${date}\n**Target Handle:** ${handle || 'N/A'}\n**Target Name:** ${name || 'N/A'}\n**Target Emails:** ${emails || 'N/A'}\n\n## Data Broker Opt-Out Status\n\n`;
+      auditData.dataBrokers.forEach(b => { md += `- **${b.name}**: ${b.status} (${b.url})\n`; });
+      md += `\n## Breach & Exposure Log\n\n`;
+      if (auditData.breaches.length === 0) { md += `*No breaches logged.*\n`; }
+      else { auditData.breaches.forEach(br => { md += `- **${br.service}** | Severity: ${br.severity} | Status: ${br.status}\n  - Data: ${br.dataTypes}\n`; }); }
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `OSINT_Audit_Report_${date}.md`; a.click();
+      showToast('Exported Markdown audit report.');
+    }
+
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.profile && imported.dataBrokers) { auditData = imported; saveState(); loadState(); showToast('Audit session imported successfully.'); }
+          else { showToast('Invalid audit JSON format.'); }
+        } catch (err) { showToast('Failed to parse JSON file.'); }
+      };
+      reader.readAsText(file);
+    }
+
+    function confirmResetData() {
+      if (confirm('Are you sure you want to clear all target data and audit logs? This action cannot be undone.')) {
+        localStorage.removeItem('osint_audit_session'); location.reload();
+      }
+    }
+
+    function copyToClipboard(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text; document.body.appendChild(textarea);
+      textarea.select(); document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('Command copied to clipboard!');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-20');
+      setTimeout(() => { toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-20'); }, 3000);
+    }
+
+    // === HACKER TOOLBOX ===
+
+    // EXIF Stripper - redraws image to canvas, stripping all metadata
+    let exifCleanUrl = null;
+    document.getElementById('exifInput')?.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('exifInfo').innerHTML = `loaded: ${file.name} (${(file.size/1024).toFixed(1)}kb)<br><span class="text-amber-400">metadata present — strip before sharing</span>`;
+    });
+    function stripExif() {
+      const input = document.getElementById('exifInput');
+      const file = input.files[0];
+      if (!file) { showToast('pick an image first'); return; }
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.toBlob(function(blob) {
+          if (exifCleanUrl) URL.revokeObjectURL(exifCleanUrl);
+          exifCleanUrl = URL.createObjectURL(blob);
+          const dl = document.getElementById('exifDownload');
+          dl.href = exifCleanUrl; dl.classList.remove('hidden');
+          document.getElementById('exifInfo').innerHTML = `<span class="text-emerald-400">clean — ${(blob.size/1024).toFixed(1)}kb, zero metadata</span>`;
+          showToast('metadata stripped');
+        }, 'image/jpeg', 0.92);
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(file);
+    }
+
+    // Password Strength - local entropy check
+    function checkPw() {
+      const pw = document.getElementById('pwInput').value;
+      const bar = document.getElementById('pwBar');
+      const label = document.getElementById('pwLabel');
+      const tips = document.getElementById('pwTips');
+      if (!pw) { bar.style.width = '0'; label.textContent = ''; tips.textContent = ''; return; }
+      let score = 0; const feedback = [];
+      if (pw.length >= 8) score += 20; else feedback.push('longer (8+ chars)');
+      if (pw.length >= 12) score += 15;
+      if (pw.length >= 16) score += 10;
+      if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score += 15; else feedback.push('mixed case');
+      if (/\d/.test(pw)) score += 15; else feedback.push('numbers');
+      if (/[^a-zA-Z0-9]/.test(pw)) score += 15; else feedback.push('symbols');
+      if (!/(.)\1{2,}/.test(pw)) score += 10; else feedback.push('no repeats');
+      score = Math.min(100, score);
+      bar.style.width = score + '%';
+      bar.style.background = score < 40 ? '#ef4444' : score < 70 ? '#f59e0b' : '#b5ff4d';
+      label.innerHTML = score < 40 ? '<span class="text-red-400">weak</span>' : score < 70 ? '<span class="text-amber-400">okay</span>' : '<span class="text-emerald-400">strong</span>';
+      tips.textContent = feedback.length ? 'add: ' + feedback.join(', ') : 'solid password';
+    }
+
+    // Link Expander - follows redirects client-side
+    async function expandLink() {
+      const url = document.getElementById('linkInput').value.trim();
+      const result = document.getElementById('linkResult');
+      if (!url) { result.innerHTML = '<span class="text-gray-500">paste a url first</span>'; return; }
+      result.innerHTML = '<span class="text-gray-400">expanding…</span>';
+      try {
+        const resp = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+        const final = resp.url;
+        const isShort = final !== url;
+        result.innerHTML = `<span class="text-gray-400">original:</span><br>${url}<br><br><span class="text-gray-400">resolves to:</span><br><span class="${isShort ? 'text-amber-400' : 'text-emerald-400'}">${final}</span>${isShort ? '<br><br><span class="text-amber-400">⚠ shortened link — verify before clicking</span>' : '<br><br><span class="text-emerald-400">direct link, no redirect</span>'}`;
+      } catch (e) {
+        result.innerHTML = `<span class="text-red-400">couldn't expand (blocked by cors or offline). try opening in a private tab first.</span>`;
+      }
+    }
+
+    // Hash Lab - SHA-256 + type identification
+    async function hashLab() {
+      const input = document.getElementById('hashInput').value.trim();
+      const result = document.getElementById('hashResult');
+      if (!input) { result.innerHTML = ''; return; }
+      // Check if it looks like a hash
+      const hashPatterns = [
+        { len: 32, type: 'MD5' }, { len: 40, type: 'SHA-1' },
+        { len: 64, type: 'SHA-256' }, { len: 128, type: 'SHA-512' }
+      ];
+      const hexOnly = /^[a-fA-F0-9]+$/.test(input);
+      const match = hashPatterns.find(h => input.length === h.len && hexOnly);
+      if (match) {
+        result.innerHTML = `<span class="text-cyan-400">identified: ${match.type}</span><br><span class="text-gray-500">${input.length} hex chars</span>`;
+        return;
+      }
+      // Generate SHA-256
+      try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+        const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+        result.innerHTML = `<span class="text-gray-400">sha-256:</span><br><span class="text-emerald-400 select-all">${hex}</span>`;
+      } catch (e) {
+        result.innerHTML = '<span class="text-red-400">hashing unavailable</span>';
+      }
+    }
+  </script>
+</body>
+</html>
